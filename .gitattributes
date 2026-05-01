@@ -1,0 +1,18 @@
+# Auto-normalize text files
+* text=auto
+
+# Ensure consistent EOL for JS/JSON
+*.js eol=lf
+*.json eol=lf
+
+# Markdown as text
+*.md text
+
+# Treat common image formats as binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+
+# Do not include local push instructions in exported archives
+PUSHING.md export-ignore

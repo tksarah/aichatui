@@ -1,0 +1,46 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: ${PORT:-3000}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN}
+      USE_MOCK_LLM: ${USE_MOCK_LLM:-false}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      ALLOWED_MODELS: ${ALLOWED_MODELS:-}
+      ENABLE_MODEL_SWITCH: ${ENABLE_MODEL_SWITCH:-false}
+    expose:
+      - "3000"
+    networks:
+      - app-net
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - app-net
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  app-net:
+    driver: bridge

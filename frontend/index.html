@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Chat UI</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app-shell" id="appShell">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <div class="brand">
+            <div class="brand-mark">AI</div>
+            <div>
+              <p class="brand-kicker">授業専用</p>
+              <h1>AI Chat UI</h1>
+            </div>
+          </div>
+          <button class="sidebar-button primary" id="newChatButton" type="button">新しいチャット</button>
+        </div>
+
+        <div class="sidebar-bottom">
+          <div class="sidebar-section">
+            <div class="sidebar-section-header">
+              <span>出力</span>
+            </div>
+            <label class="select-label" for="outputFormatSelect">返信形式</label>
+            <select id="outputFormatSelect" class="model-select">
+              <option value="plain">プレーンテキスト</option>
+              <option value="rich">リッチ表示</option>
+            </select>
+          </div>
+
+          <div class="sidebar-section">
+            <div class="sidebar-section-header">
+              <span>モデル</span>
+            </div>
+            <label class="select-label" for="modelSelect">管理者向け</label>
+            <select id="modelSelect" class="model-select"></select>
+          </div>
+
+          <button class="sidebar-button" id="themeToggleButton" type="button">ダークモード切り替え</button>
+        </div>
+      </aside>
+
+      <main class="chat-panel">
+        <header class="chat-header">
+          <div>
+            <p class="chat-header-kicker">ログイン不要・ブラウザ利用</p>
+            <h2>ChatGPT風の授業用チャット</h2>
+          </div>
+          <div style="display: flex; gap:8px; align-items:center;">
+            <div class="status-pill" id="replyFormatPill">返信形式：プレーン</div>
+            <div class="status-pill" id="statusPill">準備完了</div>
+          </div>
+        </header>
+
+        <section class="messages" id="messages" aria-live="polite"></section>
+
+        <form class="composer" id="composer">
+          <textarea
+            id="messageInput"
+            class="message-input"
+            rows="1"
+            placeholder="メッセージを入力してください"
+            aria-label="メッセージ入力"
+          ></textarea>
+          <button class="send-button" id="sendButton" type="submit">送信</button>
+        </form>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
