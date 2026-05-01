@@ -10,7 +10,9 @@ const themeToggleButtonEl = document.getElementById("themeToggleButton");
 const modelSelectEl = document.getElementById("modelSelect");
 const outputFormatSelectEl = document.getElementById("outputFormatSelect");
 
-const chatHistoryStorageKey = "aichatui.chatHistory.v1";
+const legacyChatHistoryStorageKey = "aichatui.chatHistory.v1";
+const chatHistoryClientIdKey = "aichatui.chatHistoryClientId.v1";
+const chatHistoryClientId = getOrCreateChatHistoryClientId();
 let chatHistoryTtlMs = 30 * 60 * 1000; // default 30 minutes, may be overridden by server
 const sessionArchiveLimit = 12;
 
@@ -101,6 +103,24 @@ function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+function getOrCreateChatHistoryClientId() {
+  const existingClientId = localStorage.getItem(chatHistoryClientIdKey);
+  if (existingClientId) {
+    return existingClientId;
+  }
+
+  const generatedClientId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  localStorage.setItem(chatHistoryClientIdKey, generatedClientId);
+  return generatedClientId;
+}
+
+function getChatHistoryEndpoint() {
+  return `/api/history?clientId=${encodeURIComponent(chatHistoryClientId)}`;
+}
+
 function createSession(messages = []) {
   const now = Date.now();
   return {
@@ -182,39 +202,30 @@ function saveChatHistory() {
     return;
   }
 
-  const payload = {
-    savedAt: Date.now(),
-    activeSession: state.activeSession,
-    archivedSessions: pruneArchivedSessions(state.archivedSessions)
-  };
-
-  localStorage.setItem(chatHistoryStorageKey, JSON.stringify(payload));
+  fetch(getChatHistoryEndpoint(), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      activeSession: state.activeSession,
+      archivedSessions: pruneArchivedSessions(state.archivedSessions)
+    })
+  }).catch((error) => {
+    console.error(error);
+  });
 }
 
-function loadChatHistory() {
+async function loadChatHistory() {
   try {
-    const rawValue = localStorage.getItem(chatHistoryStorageKey);
-    if (!rawValue) {
-      setActiveSession(createSession());
-      state.archivedSessions = [];
-      return;
+    localStorage.removeItem(legacyChatHistoryStorageKey);
+
+    const response = await fetch(getChatHistoryEndpoint());
+    if (!response.ok) {
+      throw new Error("履歴の読み込みに失敗しました");
     }
 
-    const parsedValue = JSON.parse(rawValue);
-    if (!parsedValue || typeof parsedValue.savedAt !== "number") {
-      localStorage.removeItem(chatHistoryStorageKey);
-      setActiveSession(createSession());
-      state.archivedSessions = [];
-      return;
-    }
-
-    if (Date.now() - parsedValue.savedAt > chatHistoryTtlMs) {
-      localStorage.removeItem(chatHistoryStorageKey);
-      setActiveSession(createSession());
-      state.archivedSessions = [];
-      return;
-    }
-
+    const parsedValue = await response.json();
     const archivedSessions = Array.isArray(parsedValue.archivedSessions)
       ? parsedValue.archivedSessions.map(normalizeSession).filter(Boolean)
       : [];
@@ -223,7 +234,6 @@ function loadChatHistory() {
     state.archivedSessions = pruneArchivedSessions(archivedSessions);
     setActiveSession(activeSession);
   } catch {
-    localStorage.removeItem(chatHistoryStorageKey);
     setActiveSession(createSession());
     state.archivedSessions = [];
   }
@@ -286,7 +296,7 @@ function openArchivedSession(sessionId) {
 }
 
 function getSavedChatHistory() {
-  loadChatHistory();
+  void loadChatHistory();
   return getActiveMessages();
 }
 
@@ -556,19 +566,19 @@ saveThemeFromMediaQuery();
 updateOutputFormat(state.outputFormat);
 setStatus("初期化中...");
 loadModelConfig()
-  .then((data) => {
+  .then(async (data) => {
     if (data && typeof data.historyTtlMinutes === "number") {
       chatHistoryTtlMs = Number(data.historyTtlMinutes) * 60 * 1000;
     }
-    loadChatHistory();
+    await loadChatHistory();
     renderMessages();
     renderSessionHistory();
     setStatus("準備完了");
   })
-  .catch((error) => {
+  .catch(async (error) => {
     console.error(error);
-    // fallback: still try to load any client-side history with default TTL
-    loadChatHistory();
+    // fallback: still try to load any server-side history with default TTL
+    await loadChatHistory();
     renderMessages();
     renderSessionHistory();
     setStatus("モデル設定の読み込みに失敗しました");

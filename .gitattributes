@@ -1,32 +1,20 @@
-# Normalize line endings: keep LF in the repository, let clients handle checkout
+# Normalize text files to LF in the repository.
 * text=auto
 
-# Force LF for common text file types to avoid CRLF warnings on commit
-*.js     text eol=lf
-*.html   text eol=lf
-*.css    text eol=lf
-*.json   text eol=lf
+# Force LF for common text file types.
+*.js text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.md text eol=lf
 README.md text eol=lf
+docker-compose.yml text eol=lf
 
-# Binary files
-*.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary# Auto-normalize text files
-* text=auto
-
-# Ensure consistent EOL for JS/JSON
-*.js eol=lf
-*.json eol=lf
-
-# Markdown as text
-*.md text
-
-# Treat common image formats as binary
+# Treat common image formats as binary.
 *.png binary
 *.jpg binary
 *.jpeg binary
 *.gif binary
 
-# Do not include local push instructions in exported archives
+# Do not include local push instructions in exported archives.
 PUSHING.md export-ignore
