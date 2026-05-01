@@ -49,11 +49,13 @@ app.get("/api/health", (_request, response) => {
 });
 
 app.get("/api/models", (_request, response) => {
+  const ttlMinutes = Number(process.env.CHAT_HISTORY_TTL_MINUTES || 30);
   response.json({
     provider,
     models,
     selectedModel: models[0],
-    modelSwitchEnabled: isModelSwitchEnabled(process.env)
+    modelSwitchEnabled: isModelSwitchEnabled(process.env),
+    historyTtlMinutes: ttlMinutes
   });
 });
 

@@ -1,4 +1,18 @@
-# Auto-normalize text files
+# Normalize line endings: keep LF in the repository, let clients handle checkout
+* text=auto
+
+# Force LF for common text file types to avoid CRLF warnings on commit
+*.js     text eol=lf
+*.html   text eol=lf
+*.css    text eol=lf
+*.json   text eol=lf
+README.md text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary# Auto-normalize text files
 * text=auto
 
 # Ensure consistent EOL for JS/JSON

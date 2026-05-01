@@ -10,8 +10,13 @@ const themeToggleButtonEl = document.getElementById("themeToggleButton");
 const modelSelectEl = document.getElementById("modelSelect");
 const outputFormatSelectEl = document.getElementById("outputFormatSelect");
 
+const chatHistoryStorageKey = "aichatui.chatHistory.v1";
+let chatHistoryTtlMs = 30 * 60 * 1000; // default 30 minutes, may be overridden by server
+const sessionArchiveLimit = 12;
+
 const state = {
-  messages: [],
+  activeSession: null,
+  archivedSessions: [],
   isSending: false,
   models: [],
   provider: "openai",
@@ -96,6 +101,246 @@ function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+function createSession(messages = []) {
+  const now = Date.now();
+  return {
+    id: `session-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    title: "新しいチャット",
+    createdAt: now,
+    updatedAt: now,
+    messages
+  };
+}
+
+function getSessionTitle(session) {
+  if (!session || !Array.isArray(session.messages) || session.messages.length === 0) {
+    return session?.title || "新しいチャット";
+  }
+
+  const firstUserMessage = session.messages.find((message) => message.role === "user" && typeof message.content === "string");
+  if (firstUserMessage?.content) {
+    return firstUserMessage.content.trim().slice(0, 24) || "新しいチャット";
+  }
+
+  return session.title || "新しいチャット";
+}
+
+function formatSessionSubtitle(session) {
+  return new Date(session.updatedAt || session.createdAt).toLocaleString("ja-JP", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function normalizeSession(session) {
+  if (!session || typeof session.id !== "string" || !Array.isArray(session.messages)) {
+    return null;
+  }
+
+  const messages = session.messages.filter(
+    (message) =>
+      message &&
+      typeof message.role === "string" &&
+      typeof message.content === "string" &&
+      (message.role === "user" || message.role === "assistant" || message.role === "system")
+  );
+
+  if (!messages.length) {
+    return null;
+  }
+
+  const createdAt = typeof session.createdAt === "number" ? session.createdAt : Date.now();
+  const updatedAt = typeof session.updatedAt === "number" ? session.updatedAt : createdAt;
+  return {
+    id: session.id,
+    title: typeof session.title === "string" && session.title.trim() ? session.title : "新しいチャット",
+    createdAt,
+    updatedAt,
+    messages
+  };
+}
+
+function pruneArchivedSessions(sessions) {
+  const threshold = Date.now() - chatHistoryTtlMs;
+  return sessions
+    .filter((session) => session && typeof session.updatedAt === "number" && session.updatedAt >= threshold)
+    .slice(0, sessionArchiveLimit);
+}
+
+function setActiveSession(session) {
+  state.activeSession = session || createSession();
+}
+
+function getActiveMessages() {
+  return state.activeSession?.messages || [];
+}
+
+function saveChatHistory() {
+  if (!state.activeSession) {
+    return;
+  }
+
+  const payload = {
+    savedAt: Date.now(),
+    activeSession: state.activeSession,
+    archivedSessions: pruneArchivedSessions(state.archivedSessions)
+  };
+
+  localStorage.setItem(chatHistoryStorageKey, JSON.stringify(payload));
+}
+
+function loadChatHistory() {
+  try {
+    const rawValue = localStorage.getItem(chatHistoryStorageKey);
+    if (!rawValue) {
+      setActiveSession(createSession());
+      state.archivedSessions = [];
+      return;
+    }
+
+    const parsedValue = JSON.parse(rawValue);
+    if (!parsedValue || typeof parsedValue.savedAt !== "number") {
+      localStorage.removeItem(chatHistoryStorageKey);
+      setActiveSession(createSession());
+      state.archivedSessions = [];
+      return;
+    }
+
+    if (Date.now() - parsedValue.savedAt > chatHistoryTtlMs) {
+      localStorage.removeItem(chatHistoryStorageKey);
+      setActiveSession(createSession());
+      state.archivedSessions = [];
+      return;
+    }
+
+    const archivedSessions = Array.isArray(parsedValue.archivedSessions)
+      ? parsedValue.archivedSessions.map(normalizeSession).filter(Boolean)
+      : [];
+    const activeSession = normalizeSession(parsedValue.activeSession) || createSession();
+
+    state.archivedSessions = pruneArchivedSessions(archivedSessions);
+    setActiveSession(activeSession);
+  } catch {
+    localStorage.removeItem(chatHistoryStorageKey);
+    setActiveSession(createSession());
+    state.archivedSessions = [];
+  }
+}
+
+function updateSessionTitle(session) {
+  if (!session) {
+    return;
+  }
+
+  session.title = getSessionTitle(session);
+}
+
+function archiveActiveSession() {
+  if (!state.activeSession || state.activeSession.messages.length === 0) {
+    setActiveSession(createSession());
+    saveChatHistory();
+    renderMessages();
+    renderSessionHistory();
+    return;
+  }
+
+  const archivedSession = {
+    ...state.activeSession,
+    messages: state.activeSession.messages.map((message) => ({ ...message })),
+    title: getSessionTitle(state.activeSession),
+    updatedAt: Date.now()
+  };
+
+  state.archivedSessions = pruneArchivedSessions([archivedSession, ...state.archivedSessions.filter((session) => session.id !== archivedSession.id)]);
+  setActiveSession(createSession());
+  saveChatHistory();
+  renderMessages();
+  renderSessionHistory();
+}
+
+function openArchivedSession(sessionId) {
+  const session = state.archivedSessions.find((item) => item.id === sessionId);
+  if (!session) {
+    return;
+  }
+
+  state.archivedSessions = state.archivedSessions.filter((item) => item.id !== sessionId);
+  const currentActiveSession = state.activeSession && state.activeSession.messages.length ? state.activeSession : null;
+  if (currentActiveSession) {
+    state.archivedSessions = pruneArchivedSessions([
+      { ...currentActiveSession, messages: currentActiveSession.messages.map((message) => ({ ...message })), title: getSessionTitle(currentActiveSession), updatedAt: Date.now() },
+      ...state.archivedSessions
+    ]);
+  }
+
+  setActiveSession({
+    ...session,
+    messages: session.messages.map((message) => ({ ...message }))
+  });
+  saveChatHistory();
+  renderMessages();
+  renderSessionHistory();
+  setStatus(`履歴を開きました: ${getSessionTitle(session)}`);
+}
+
+function getSavedChatHistory() {
+  loadChatHistory();
+  return getActiveMessages();
+}
+
+function renderSessionHistory() {
+  const existingHistory = document.getElementById("sessionHistory");
+  if (!existingHistory) {
+    return;
+  }
+
+  existingHistory.innerHTML = "";
+
+  const allSessions = [state.activeSession, ...state.archivedSessions].filter(Boolean);
+  if (allSessions.length === 1 && state.activeSession.messages.length === 0) {
+    const emptyItem = document.createElement("p");
+    emptyItem.className = "session-history-empty";
+    emptyItem.textContent = "まだ履歴はありません。";
+    existingHistory.appendChild(emptyItem);
+    return;
+  }
+
+  for (const session of allSessions) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `session-history-item${session.id === state.activeSession?.id ? " active" : ""}`;
+    button.innerHTML = `
+      <span class="session-history-title">${escapeHtml(getSessionTitle(session))}</span>
+      <span class="session-history-meta">${escapeHtml(formatSessionSubtitle(session))} ・ ${session.messages.length}件</span>
+    `;
+    button.addEventListener("click", () => {
+      if (session.id === state.activeSession?.id) {
+        return;
+      }
+
+      if (state.activeSession && state.activeSession.messages.length) {
+        state.archivedSessions = pruneArchivedSessions([
+          { ...state.activeSession, messages: state.activeSession.messages.map((message) => ({ ...message })), title: getSessionTitle(state.activeSession), updatedAt: Date.now() },
+          ...state.archivedSessions.filter((item) => item.id !== session.id)
+        ]);
+      }
+
+      state.archivedSessions = state.archivedSessions.filter((item) => item.id !== session.id);
+      setActiveSession({
+        ...session,
+        messages: session.messages.map((message) => ({ ...message }))
+      });
+      saveChatHistory();
+      renderMessages();
+      renderSessionHistory();
+      setStatus(`セッションを切り替えました: ${getSessionTitle(session)}`);
+    });
+    existingHistory.appendChild(button);
+  }
+}
+
 function applyTheme(theme) {
   state.theme = theme;
   document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
@@ -117,13 +362,13 @@ function getAssistantMessageElement(text, role = "assistant", outputFormat = "pl
 function renderMessages() {
   messagesEl.innerHTML = "";
 
-  if (state.messages.length === 0) {
+  if (getActiveMessages().length === 0) {
     messagesEl.appendChild(getAssistantMessageElement("ここにメッセージが表示されます。", "system"));
     scrollToBottom();
     return;
   }
 
-  for (const message of state.messages) {
+  for (const message of getActiveMessages()) {
     messagesEl.appendChild(getAssistantMessageElement(message.content, message.role, message.outputFormat));
   }
 
@@ -170,11 +415,11 @@ function autoGrowTextarea() {
 }
 
 function resetChat() {
-  state.messages = [];
+  archiveActiveSession();
   renderMessages();
   messageInputEl.value = "";
   autoGrowTextarea();
-  setStatus("新規チャットを開始しました");
+  setStatus("新しいセッションを開始しました");
 }
 
 function saveThemeFromMediaQuery() {
@@ -222,6 +467,7 @@ async function loadModelConfig() {
 
   const data = await response.json();
   updateModelOptions(data);
+  return data;
 }
 
 async function sendMessage(messageText) {
@@ -230,7 +476,9 @@ async function sendMessage(messageText) {
   }
 
   const userMessage = { role: "user", content: messageText.trim() };
-  state.messages.push(userMessage);
+  state.activeSession.messages.push(userMessage);
+  updateSessionTitle(state.activeSession);
+  saveChatHistory();
   renderMessages();
   showLoadingBubble();
   setSending(true);
@@ -243,7 +491,7 @@ async function sendMessage(messageText) {
       },
       body: JSON.stringify({
         message: messageText.trim(),
-        history: state.messages.slice(0, -1),
+        history: state.activeSession.messages.slice(0, -1),
         model: state.selectedModel || undefined,
         outputFormat: state.outputFormat
       })
@@ -255,13 +503,17 @@ async function sendMessage(messageText) {
     }
 
     const data = await response.json();
-    state.messages.push({ role: "assistant", content: data.reply, outputFormat: data.outputFormat || state.outputFormat });
+  state.activeSession.messages.push({ role: "assistant", content: data.reply, outputFormat: data.outputFormat || state.outputFormat });
+  updateSessionTitle(state.activeSession);
+    saveChatHistory();
     hideLoadingBubble();
     renderMessages();
     setStatus(data.provider && data.model ? `応答完了 / ${data.provider} / ${data.model} / ${data.outputFormat || state.outputFormat}` : "応答完了");
   } catch (error) {
     hideLoadingBubble();
-    state.messages.push({ role: "assistant", content: `エラーが発生しました: ${error.message}` });
+    state.activeSession.messages.push({ role: "assistant", content: `エラーが発生しました: ${error.message}` });
+    updateSessionTitle(state.activeSession);
+    saveChatHistory();
     renderMessages();
     setStatus("エラーが発生しました");
   } finally {
@@ -302,11 +554,22 @@ window.addEventListener("resize", scrollToBottom);
 
 saveThemeFromMediaQuery();
 updateOutputFormat(state.outputFormat);
-renderMessages();
 setStatus("初期化中...");
 loadModelConfig()
-  .then(() => setStatus("準備完了"))
+  .then((data) => {
+    if (data && typeof data.historyTtlMinutes === "number") {
+      chatHistoryTtlMs = Number(data.historyTtlMinutes) * 60 * 1000;
+    }
+    loadChatHistory();
+    renderMessages();
+    renderSessionHistory();
+    setStatus("準備完了");
+  })
   .catch((error) => {
     console.error(error);
+    // fallback: still try to load any client-side history with default TTL
+    loadChatHistory();
+    renderMessages();
+    renderSessionHistory();
     setStatus("モデル設定の読み込みに失敗しました");
   });

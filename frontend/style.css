@@ -92,6 +92,67 @@ textarea {
   padding-top: 8px;
 }
 
+.sidebar-note {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.session-history {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.session-history-list {
+  display: grid;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.session-history-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: var(--panel-strong);
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+}
+
+.session-history-item:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
+}
+
+.session-history-item.active {
+  border-color: rgba(37, 99, 235, 0.65);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.session-history-title {
+  font-weight: 700;
+  font-size: 0.94rem;
+}
+
+.session-history-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.session-history-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
 .brand {
   display: flex;
   gap: 14px;
