@@ -6,7 +6,6 @@ yarn-error.log*
 
 ## Env
 .env
-.env.*
 
 ## Build
 dist/
