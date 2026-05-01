@@ -32,11 +32,14 @@ npm install
 - `ENABLE_MODEL_SWITCH` — `true` にすると `/api/models` でモデル切替が有効
 - `ALLOWED_MODELS` — カンマ区切りで許可するモデル
 - `USE_MOCK_LLM` — `true` にすると LLM 呼び出しを行わずモック応答を返す
+- `CHAT_HISTORY_TTL_MINUTES` — 履歴を保持する分数（既定: `30`）
+- `SESSION_HISTORY_VISIBLE_COUNT` — 左側の履歴一覧でスクロールさせずに見せる件数（既定: `10`）
 
 履歴保存について:
 - チャット履歴はサーバー側に保存されます。ブラウザ側には履歴本体を残しません
 - 「新しいチャット」を押すと、今の会話は退避され、次回読み込み時に復元できます
 - 一定時間で自動削除されます（既定は 30 分）。サーバー側環境変数 `CHAT_HISTORY_TTL_MINUTES` で調整できます
+- 左側の履歴一覧は、サーバー側環境変数 `SESSION_HISTORY_VISIBLE_COUNT` で「スクロールさせずに表示する件数」を調整できます
 - 共有端末では、保存から一定時間が経つとサーバー側から履歴が消えます
 
 例（ローカル）:

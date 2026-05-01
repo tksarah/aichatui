@@ -108,7 +108,7 @@ textarea {
 .session-history-list {
   display: grid;
   gap: 8px;
-  max-height: 280px;
+  max-height: none;
   overflow-y: auto;
   padding-right: 4px;
 }

@@ -19,6 +19,8 @@ const historyTtlMinutes = Number.isFinite(configuredHistoryTtlMinutes) && config
 const historyTtlMs = historyTtlMinutes * 60 * 1000;
 const historyCleanupIntervalMs = Math.max(60 * 1000, Math.min(historyTtlMs, 10 * 60 * 1000));
 const sessionArchiveLimit = 12;
+const configuredHistoryVisibleCount = Number(process.env.SESSION_HISTORY_VISIBLE_COUNT || 10);
+const historyVisibleCount = Number.isFinite(configuredHistoryVisibleCount) && configuredHistoryVisibleCount > 0 ? Math.floor(configuredHistoryVisibleCount) : 10;
 const chatHistoryStore = new Map();
 
 function normalizeOutputFormat(value) {
@@ -171,7 +173,8 @@ app.get("/api/models", (_request, response) => {
     models,
     selectedModel: models[0],
     modelSwitchEnabled: isModelSwitchEnabled(process.env),
-    historyTtlMinutes
+    historyTtlMinutes,
+    historyVisibleCount
   });
 });
 
@@ -186,7 +189,8 @@ app.get("/api/history", (request, response) => {
   response.json({
     ...sanitizeHistoryState(entry),
     savedAt: entry?.savedAt || null,
-    historyTtlMinutes
+    historyTtlMinutes,
+    historyVisibleCount
   });
 });
 
@@ -200,7 +204,8 @@ app.put("/api/history", (request, response) => {
   const entry = saveStoredHistory(clientId, request.body);
   response.json({
     ...entry,
-    historyTtlMinutes
+    historyTtlMinutes,
+    historyVisibleCount
   });
 });
 

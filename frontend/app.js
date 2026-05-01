@@ -14,6 +14,7 @@ const legacyChatHistoryStorageKey = "aichatui.chatHistory.v1";
 const chatHistoryClientIdKey = "aichatui.chatHistoryClientId.v1";
 const chatHistoryClientId = getOrCreateChatHistoryClientId();
 let chatHistoryTtlMs = 30 * 60 * 1000; // default 30 minutes, may be overridden by server
+let sessionHistoryVisibleCount = 10;
 const sessionArchiveLimit = 12;
 
 const state = {
@@ -101,6 +102,15 @@ function updateReplyFormatPill(format) {
 
 function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function normalizePositiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+function updateSessionHistoryVisibility(config) {
+  sessionHistoryVisibleCount = normalizePositiveInteger(config?.historyVisibleCount, sessionHistoryVisibleCount);
 }
 
 function getOrCreateChatHistoryClientId() {
@@ -226,6 +236,7 @@ async function loadChatHistory() {
     }
 
     const parsedValue = await response.json();
+      updateSessionHistoryVisibility(parsedValue);
     const archivedSessions = Array.isArray(parsedValue.archivedSessions)
       ? parsedValue.archivedSessions.map(normalizeSession).filter(Boolean)
       : [];
@@ -349,6 +360,41 @@ function renderSessionHistory() {
     });
     existingHistory.appendChild(button);
   }
+
+  // 履歴コンテナ高さを調整（10件まではスクロールさせない）
+  updateSessionHistoryMaxHeight();
+}
+
+// 履歴リストの高さを動的に決める
+function updateSessionHistoryMaxHeight() {
+  const container = document.getElementById("sessionHistory");
+  if (!container) return;
+
+  const emptyItem = container.querySelector('.session-history-empty');
+  const items = Array.from(container.querySelectorAll('.session-history-item'));
+
+  if (!items.length || emptyItem) {
+    container.style.maxHeight = null;
+    container.style.overflowY = null;
+    return;
+  }
+
+  const count = items.length;
+  const visibleCount = normalizePositiveInteger(sessionHistoryVisibleCount, 10);
+
+  if (count <= visibleCount) {
+    container.style.maxHeight = null;
+    container.style.overflowY = 'visible';
+    return;
+  }
+
+  const first = items[0];
+  const itemHeight = first.offsetHeight;
+  const computed = getComputedStyle(container);
+  const gap = parseFloat(computed.rowGap || computed.gap) || 0;
+  const total = itemHeight * visibleCount + gap * (visibleCount - 1);
+  container.style.maxHeight = `${Math.ceil(total)}px`;
+  container.style.overflowY = 'auto';
 }
 
 function applyTheme(theme) {
@@ -476,6 +522,7 @@ async function loadModelConfig() {
   }
 
   const data = await response.json();
+  updateSessionHistoryVisibility(data);
   updateModelOptions(data);
   return data;
 }
@@ -560,7 +607,10 @@ outputFormatSelectEl.addEventListener("change", (event) => {
   updateReplyFormatPill(state.outputFormat);
 });
 
-window.addEventListener("resize", scrollToBottom);
+window.addEventListener("resize", () => {
+  scrollToBottom();
+  updateSessionHistoryMaxHeight();
+});
 
 saveThemeFromMediaQuery();
 updateOutputFormat(state.outputFormat);
